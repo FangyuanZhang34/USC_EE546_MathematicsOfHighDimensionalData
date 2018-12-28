@@ -1,0 +1,169 @@
+<html>
+<head>
+<title>hw3_2_2.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #000080; font-weight: bold;}
+.s1 { color: #000000;}
+.s2 { color: #0000ff;}
+.s3 { color: #808080; font-style: italic;}
+.s4 { color: #008080; font-weight: bold;}
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+hw3_2_2.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span>numpy <span class="s0">as </span>np
+<span class="s0">import </span>scipy <span class="s0">as </span>sp
+<span class="s0">from </span>numpy.random <span class="s0">import </span>randn
+<span class="s0">from </span>scipy.linalg <span class="s0">import </span>orth
+<span class="s0">import </span>time
+
+
+<span class="s0">def </span>power_method_norm(U_r, U_A_r, m):
+    b = np.random.rand(m)
+    <span class="s0">for </span>i <span class="s0">in </span>range(<span class="s2">10</span>):  <span class="s3"># set itertation counter of power method to 50</span>
+        # calculate the matrix-by-vector product Ab
+        b1 = np.dot(U_r, np.dot(U_r.T, b)) - np.dot(U_A_r, np.dot(U_A_r.T, b))
+        b2 = np.dot(U_r, np.dot(U_r.T, b1)) - np.dot(U_A_r, np.dot(U_A_r.T, b1))
+        <span class="s3"># calculate the norm</span>
+        b2_norm = np.linalg.norm(b2)
+        <span class="s3"># re normalize the vector</span>
+        b = b2 / b2_norm
+    <span class="s3"># use Rayleigh quotient ||UrUr - UrUr|| ** 2 = </span>
+    # (UrUr - UrUr)** 2 's largest eigenvalue
+    b1 = np.dot(U_r, np.dot(U_r.T, b)) - np.dot(U_A_r, np.dot(U_A_r.T, b))
+    b2 = np.dot(U_r, np.dot(U_r.T, b1)) - np.dot(U_A_r, np.dot(U_A_r.T, b1))
+    norm_err = np.dot(b.T, b2) / (np.dot(b.T, b))
+    <span class="s3"># UrUr - UrUr 's largest singular value = </span>
+    # the sqrt of (UrUr - UrUr)** 2 's eigenvalue
+    norm_err = np.sqrt(norm_err)
+    <span class="s0">return </span>norm_err
+
+
+<span class="s0">def </span>random_SVM_trials(trials, r, eps, m, n, X, Y):
+    <span class="s3"># r = 10</span>
+    d = <span class="s2">4 </span>* <span class="s2">10 </span>** (-<span class="s2">3</span>)
+    d1 = np.array([r - i + <span class="s2">1 </span><span class="s0">for </span>i <span class="s0">in </span>range(<span class="s2">1</span>, r + <span class="s2">1</span>)]).reshape((r, <span class="s2">1</span>))
+    d2 = np.full((m - r, <span class="s2">1</span>), d)
+    d = np.vstack((d1, d2))
+    D = np.diag(d.reshape(m))
+
+    A = X.dot(D).dot(Y.T)
+
+    <span class="s4">''' 
+    Step 2: Compute A's svd, and record the time needed for svd 
+    '''</span>
+    A_svd_start_time = time.time()
+    U_A, D_A, V_A = sp.linalg.svd(a=A, full_matrices=<span class="s0">False</span>, lapack_driver=<span class="s4">&quot;gesvd&quot;</span>)
+    print(<span class="s4">&quot;---SVD of A: %s seconds ---&quot; </span>% (time.time() - A_svd_start_time))
+    <span class="s4">''' 
+    Step 3: Get the top r left/right singulars vectors of U_A 
+    '''</span>
+    U_A_r = np.zeros((m, r))
+    V_A_r = np.zeros((r, n))
+    U_A_r = U_A[:, :r]
+    V_A_r = V_A[:r, :].T
+
+    <span class="s4">''' 
+    Step 4: Compute p for each col Ai/ each row Aj 
+    '''</span>
+    norm_A = np.linalg.norm(A)
+    norm_Ai = np.array([np.linalg.norm(A[:, i]) <span class="s0">for </span>i <span class="s0">in </span>range(n)])
+    pi = norm_Ai ** <span class="s2">2 </span>/ norm_A ** <span class="s2">2</span>
+    norm_Aj = np.array([np.linalg.norm(A[j, :]) <span class="s0">for </span>j <span class="s0">in </span>range(m)])
+    pj = norm_Aj ** <span class="s2">2 </span>/ norm_A ** <span class="s2">2</span>
+
+    sum_c = <span class="s2">0</span>
+
+    <span class="s0">for </span>trial <span class="s0">in </span>range(trials):
+        <span class="s0">for </span>c <span class="s0">in </span>range(r, r * <span class="s2">50</span>):
+            <span class="s4">''' 
+            Step 5: Randomly choose c cols based on pi/ c rows based on pj 
+            '''</span>
+            cols = np.random.choice(n, c, p=pi)
+            pi_c = pi[cols]
+            B_col = A[:, cols] / np.sqrt(c * pi_c).reshape((<span class="s2">1</span>, c))
+            rows = np.random.choice(m, c, p=pj)
+            pj_c = pj[rows]
+            B_row = (A[rows, :] / np.sqrt(c * pj_c).reshape((c, <span class="s2">1</span>))).T
+
+            <span class="s4">''' 
+            Step 6: Compute B_col's top r left/B_row's top r right singular vectors 
+            '''</span>
+            U_B_col, D_B_col, V_B_col = sp.linalg.svd(a=B_col, full_matrices=<span class="s0">False</span>, lapack_driver=<span class="s4">&quot;gesvd&quot;</span>)
+            U_r = U_B_col[:, :r]
+            U_B_row, D_B_row, V_B_row = sp.linalg.svd(a=B_row, full_matrices=<span class="s0">False</span>, lapack_driver=<span class="s4">&quot;gesvd&quot;</span>)
+            V_r = U_B_row[:, :r]
+
+            <span class="s4">''' 
+            Step 7: compute errors of U_B_col_r 
+                    first: compute ||UrUr - UrUr|| ** 2 using power method 
+                    second: take squre root 
+            '''</span>
+            <span class="s3"># power method:</span>
+            norm_Err_col = power_method_norm(U_r, U_A_r, m)
+
+            <span class="s3"># power method:</span>
+            norm_Err_row = power_method_norm(V_r, V_A_r, n)
+
+            <span class="s4">''' 
+            Step 8: compute relative errors of U_B_col_r/V_B_row_r         
+            '''</span>
+            relative_norm_Err_col = norm_Err_col
+            relative_norm_Err_row = norm_Err_row
+
+            <span class="s0">if </span>(relative_norm_Err_col &lt;= eps) <span class="s0">and </span>(relative_norm_Err_row &lt;= eps):
+                <span class="s0">break</span>
+
+        print(<span class="s4">f&quot;r = {r}, error &lt;= {eps}, iter {trial} : c = {c}&quot;</span>)
+        sum_c = sum_c + c
+
+    avg_c = sum_c / <span class="s2">10</span>
+    <span class="s0">return </span>avg_c
+
+
+<span class="s0">def </span>main():
+    <span class="s3">''' 
+    Step 1: Create X, Y and D, then compute A        
+    '''</span>
+    m = <span class="s2">1000</span>
+    n = <span class="s2">100000</span>
+    X = orth(randn(m, m))
+    Y = orth(randn(n, m))
+
+    r_list = [<span class="s2">2</span>, <span class="s2">5</span>, <span class="s2">15</span>, <span class="s2">20</span>]
+    avg_c_all = np.zeros(<span class="s2">4</span>)
+
+    <span class="s0">for </span>i <span class="s0">in </span>range(<span class="s2">4</span>):
+        avg_c = random_SVM_trials(<span class="s2">10</span>, r_list[i], <span class="s2">0.05</span>, m, n, X, Y)
+        print(<span class="s4">f&quot;When r = {r_list[i]} and eps = 0.05, average c = {avg_c}.&quot;</span>)
+        avg_c_all[i] = avg_c
+
+    np.savetxt(<span class="s4">&quot;avg_c_all.csv&quot;</span>, avg_c_all, delimiter=<span class="s4">&quot;,&quot;</span>)
+
+
+<span class="s0">if </span>__name__ == <span class="s4">&quot;__main__&quot;</span>:
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</pre>
+</body>
+</html>
